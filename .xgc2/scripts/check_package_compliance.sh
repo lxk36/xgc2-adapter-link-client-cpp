@@ -26,6 +26,7 @@ required=(
   .xgc2/product.yml .xgc2/scripts/build_deb.sh
   .xgc2/scripts/configure_xgc2_apt.sh
   .xgc2/scripts/fetch_protobuf_deb.sh
+  .xgc2/scripts/test_fetch_protobuf_deb.sh
   .xgc2/scripts/install_protobuf_dependency.sh
   .xgc2/scripts/check_cpp_quality.sh
   .xgc2/scripts/smoke_test_installed.sh
@@ -47,7 +48,7 @@ done
     exit 1
   fi
   if [[ "${XGC2_PROTOBUF_PROTOCOL_VERSION}" != "0.5.0" ||
-        "${XGC2_PROTOBUF_STANDALONE_SOURCE_REF}" != "6fd0781937613368bc4a3e4cb1a6fd6d03ead826" ]]; then
+        "${XGC2_PROTOBUF_STANDALONE_SOURCE_REF}" != "17395aabbeb1987898dca3a8e7ee1a720ceb2ccf" ]]; then
     echo "protobuf standalone source is not the supported RuntimeLink protocol contract" >&2
     exit 1
   fi
@@ -112,6 +113,8 @@ if product.get("kind") != "toolchain-apt":
 version = product.get("version")
 if not isinstance(version, str) or not version:
     raise SystemExit("product metadata version is missing")
+if version != "0.6.0-12":
+    raise SystemExit("product metadata version must be 0.6.0-12")
 
 apt = product.get("apt")
 if not isinstance(apt, dict):
@@ -129,6 +132,8 @@ if not isinstance(packages, list) or "libxgc2-adapter-runtime-client2" not in pa
 release = product.get("release")
 if not isinstance(release, dict):
     raise SystemExit("product metadata release section is missing")
+if release.get("repository") != "XGC-Team/xgc2-adapter-runtime-client-cpp":
+    raise SystemExit("product metadata release repository mismatch")
 policy = release.get("dependency_policy")
 if not isinstance(policy, dict) or policy.get("xgc2-protobuf") != "rebuild":
     raise SystemExit("release.dependency_policy must rebuild xgc2-protobuf")
@@ -169,8 +174,12 @@ for workflow in .github/workflows/ci.yml .github/workflows/release.yml; do
   fi
 done
 grep -Fq 'actions/runs/${run_id}/artifacts' .xgc2/scripts/fetch_protobuf_deb.sh
+grep -Fq -- '--commit "${locked_source_ref}"' .xgc2/scripts/fetch_protobuf_deb.sh
+grep -Fq -- '--json databaseId,headSha' .xgc2/scripts/fetch_protobuf_deb.sh
+grep -Fq 'run_head_sha' .xgc2/scripts/fetch_protobuf_deb.sh
 grep -Fq -- "-name 'xgc2-protobuf-dev_*.deb'" .xgc2/scripts/fetch_protobuf_deb.sh
 grep -Fq 'dpkg-deb -f' .xgc2/scripts/fetch_protobuf_deb.sh
+.xgc2/scripts/test_fetch_protobuf_deb.sh
 grep -Fq 'XGC2_PROTOBUF_STANDALONE_SOURCE_REF' .github/workflows/release.yml
 if grep -Fq 'XGC2_PROTOBUF_SOURCE_REF' .github/workflows/release.yml; then
   echo "release workflow retains the retired protobuf source-ref variable" >&2

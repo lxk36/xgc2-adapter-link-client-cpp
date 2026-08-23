@@ -8,6 +8,7 @@ fi
 
 distribution="$1"
 output_dir="$2"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 case "${distribution}" in
   focal|jammy|noble) ;;
   *)
@@ -23,6 +24,14 @@ for command in gh unzip dpkg-deb; do
   }
 done
 
+# shellcheck source=../dependencies/xgc2-protobuf.env
+source "${repo_root}/.xgc2/dependencies/xgc2-protobuf.env"
+locked_source_ref="${XGC2_PROTOBUF_STANDALONE_SOURCE_REF:-}"
+if [[ ! "${locked_source_ref}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "protobuf standalone source lock must be a full SHA" >&2
+  exit 1
+fi
+
 mkdir -p "${output_dir}"
 if find "${output_dir}" -mindepth 1 -print -quit | grep -q .; then
   echo "protobuf output directory must be empty: ${output_dir}" >&2
@@ -31,19 +40,25 @@ fi
 
 repository="XGC-Team/xgc2-protobuf"
 artifact_name="xgc2-protobuf-${distribution}-all"
-run_id="$(
+run_metadata="$(
   gh run list \
     --repo "${repository}" \
     --workflow ci.yml \
     --branch master \
+    --commit "${locked_source_ref}" \
     --event push \
     --status success \
     --limit 1 \
-    --json databaseId \
-    --jq '.[0].databaseId'
+    --json databaseId,headSha \
+    --jq '.[0] | [.databaseId, .headSha] | @tsv'
 )"
-if [[ ! "${run_id}" =~ ^[0-9]+$ ]]; then
-  echo "no successful protobuf push CI run found" >&2
+IFS=$'\t' read -r run_id run_head_sha <<< "${run_metadata}"
+if [[ ! "${run_id:-}" =~ ^[0-9]+$ || ! "${run_head_sha:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "no successful protobuf push CI run found for locked source ${locked_source_ref}" >&2
+  exit 1
+fi
+if [[ "${run_head_sha}" != "${locked_source_ref}" ]]; then
+  echo "protobuf run ${run_id} head SHA ${run_head_sha} does not match locked source ${locked_source_ref}" >&2
   exit 1
 fi
 
@@ -80,6 +95,6 @@ if [[ "$(dpkg-deb -f "${protobuf_debs[0]}" Package)" != "xgc2-protobuf-dev" ]]; 
 fi
 
 install -m 0644 "${protobuf_debs[0]}" "${output_dir}/"
-echo "Fetched ${artifact_name} from successful protobuf run ${run_id}:"
+echo "Fetched ${artifact_name} from successful protobuf run ${run_id} at ${run_head_sha}:"
 dpkg-deb -f "${output_dir}/$(basename "${protobuf_debs[0]}")" \
   Package Version Architecture
