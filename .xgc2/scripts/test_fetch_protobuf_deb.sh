@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-locked_source_ref="17395aabbeb1987898dca3a8e7ee1a720ceb2ccf"
+locked_source_ref="9dede23fb8b110b16f986e291e37700debf347ba"
 
 # shellcheck source=../dependencies/xgc2-protobuf.env
 source "${repo_root}/.xgc2/dependencies/xgc2-protobuf.env"
@@ -56,7 +56,7 @@ while (( $# > 0 )); do
 done
 test -n "${destination}"
 mkdir -p "${destination}"
-: > "${destination}/xgc2-protobuf-dev_0.5.0-13~focal_amd64.deb"
+: > "${destination}/xgc2-protobuf-dev_0.5.0-14~focal_amd64.deb"
 MOCK
 
 cat > "${mock_bin}/dpkg-deb" <<'MOCK'
@@ -69,7 +69,7 @@ if [[ "${3:-}" == "Package" && $# -eq 3 ]]; then
   printf 'xgc2-protobuf-dev\n'
   exit 0
 fi
-printf 'Package: xgc2-protobuf-dev\nVersion: 0.5.0-13~focal\nArchitecture: amd64\n'
+printf 'Package: xgc2-protobuf-dev\nVersion: 0.5.0-14~focal\nArchitecture: amd64\n'
 MOCK
 
 chmod +x "${mock_bin}/gh" "${mock_bin}/unzip" "${mock_bin}/dpkg-deb"
@@ -94,7 +94,7 @@ PATH="${mock_bin}:${PATH}" MOCK_RUN_HEAD_SHA="${locked_source_ref}" \
   "${repo_root}/.xgc2/scripts/fetch_protobuf_deb.sh" focal "${success_output}" \
   > "${temporary}/success.stdout"
 
-test -f "${success_output}/xgc2-protobuf-dev_0.5.0-13~focal_amd64.deb"
+test -f "${success_output}/xgc2-protobuf-dev_0.5.0-14~focal_amd64.deb"
 grep -Fq -- "--commit ${locked_source_ref}" "${MOCK_GH_LOG}"
 grep -Fq -- '--event push' "${MOCK_GH_LOG}"
 grep -Fq -- '--status success' "${MOCK_GH_LOG}"
